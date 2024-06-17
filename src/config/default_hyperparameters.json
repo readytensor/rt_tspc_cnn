@@ -1,4 +1,5 @@
 {
   "encode_len": 6,
-  "n_estimators": 50
+  "batch_size": 64,
+  "random_state": 42
 }

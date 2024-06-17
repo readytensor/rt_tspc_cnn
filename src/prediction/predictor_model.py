@@ -1,15 +1,19 @@
 import os
+import random
 import warnings
 
 import joblib
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+from .NNet_model import Net
+from . import NNet_model as NNet_utils
 from sklearn.exceptions import NotFittedError
 from multiprocessing import cpu_count
 from sklearn.metrics import f1_score
 from schema.data_schema import TSAnnotationSchema
 from preprocessing.custom_transformers import PADDING_VALUE
 from typing import Tuple
+import torch 
+
 
 warnings.filterwarnings("ignore")
 PREDICTOR_FILE_NAME = "predictor.joblib"
@@ -21,27 +25,41 @@ n_cpus = cpu_count()
 n_jobs = max(1, n_cpus - 1)
 print(f"Using n_jobs = {n_jobs}")
 
+device = torch.device(
+    "cuda"
+    if torch.cuda.is_available()
+    else "mps" if torch.backends.mps.is_available() else "cpu"
+)
+print("device used: ", device)
+
+def control_randomness(seed: int = 42):
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 class TSAnnotator:
-    """Random Forest Timeseries Annotator.
+    """CNN Timeseries Annotator.
 
     This class provides a consistent interface that can be used with other
     TSAnnotator models.
     """
 
-    MODEL_NAME = "Random_Forest_Timeseries_Annotator"
+    MODEL_NAME = "CNN_Timeseries_Annotator"
 
     def __init__(
         self,
         data_schema: TSAnnotationSchema,
         encode_len: int,
-        n_estimators: int = 100,
-        max_depth: int = None,
-        min_samples_split: int = 2,
+        batch_size:int = 64,
+        random_state: int = 42,
         **kwargs,
     ):
         """
-        Construct a new Random Forest TSAnnotator.
+        Construct a new CNN TSAnnotator.
 
         Args:
             encode_len (int): Encoding (history) length.
@@ -49,22 +67,25 @@ class TSAnnotator:
         """
         self.data_schema = data_schema
         self.encode_len = int(encode_len)
-        self.n_estimators = int(n_estimators)
-        self.max_depth = max_depth
-        self.min_samples_split = min_samples_split
-        self.kwargs = kwargs
-        self.model = self.build_model()
+        self.batch_size = batch_size
+        self.net = self.build_NNet_model()
         self._is_trained = False
+        self.random_state = random_state
+        self.kwargs = kwargs
 
-    def build_model(self) -> RandomForestClassifier:
-        """Build a new Random Forest regressor."""
-        model = RandomForestClassifier(
-            n_estimators=self.n_estimators,
-            max_depth=self.max_depth,
-            min_samples_split=self.min_samples_split,
-            n_jobs=n_jobs,
-            **self.kwargs,
+        control_randomness(self.random_state)
+
+    def build_NNet_model(self) -> Net:
+        """Build a new CNN annotator."""
+        model = Net(
+            feat_dim=len(self.data_schema.features),
+            encode_len=self.encode_len,
+            n_classes=len(self.data_schema.target_classes),
+            activation="relu",
         )
+        model.to(device)
+        model.set_optimizer("adam")
+
         return model
 
     def _get_X_and_y(
@@ -82,7 +103,7 @@ class TSAnnotator:
                     f" length on axis 1. Found length {T}"
                 )
             # we excluded the first 2 dimensions (id, time) and the last dimension (target)
-            X = data[:, :, 2:-1].reshape(N, -1)  # shape = [N, T*D]
+            X = data[:, :, 2:-1] # shape = [N, T, D]
             y = data[:, :, -1].astype(int)  # shape = [N, T]
         else:
             # for inference
@@ -91,26 +112,26 @@ class TSAnnotator:
                     f"Inference data length expected to be >= {self.encode_len}"
                     f" on axis 1. Found length {T}"
                 )
-            # X = data.reshape(N, -1)
-            X = data[:, :, 2:].reshape(N, -1)
+            X = data[:, :, 2:]
             y = data[:, :, 0:2]
         return X, y
 
     def fit(self, train_data):
         train_X, train_y = self._get_X_and_y(train_data, is_train=True)
-        self.model.fit(train_X, train_y)
+
+        self.net.fit(train_X, train_y, max_epochs=100, batch_size=self.batch_size, verbose=1)
+
         self._is_trained = True
-        return self.model
+        return self.net
 
     def predict(self, data):
         X, window_ids = self._get_X_and_y(data, is_train=False)
-        preds = self.model.predict_proba(X)
+
+        preds = self.net.predict_proba(X)
         for i in range(len(preds)):
             if preds[i].shape[1] > len(self.data_schema.target_classes):
                 preds[i] = preds[i][:, :-1]
         preds = np.array(preds)
-        preds = preds.transpose(1, 0, 2)
-
         prob_dict = {}
 
         for index, prediction in enumerate(preds):
@@ -133,8 +154,8 @@ class TSAnnotator:
     def evaluate(self, test_data):
         """Evaluate the model and return the loss and metrics"""
         x_test, y_test = self._get_X_and_y(test_data, is_train=True)
-        if self.model is not None:
-            prediction = self.model.predict(x_test).flatten()
+        if self.net is not None:
+            prediction = self.net.predict(x_test).flatten()
             y_test = y_test.flatten()
             f1 = f1_score(y_test, prediction, average="weighted")
             return f1
@@ -142,7 +163,7 @@ class TSAnnotator:
         raise NotFittedError("Model is not fitted yet.")
 
     def save(self, model_dir_path: str) -> None:
-        """Save the Random Forest TSAnnotator to disk.
+        """Save the CNN TSAnnotator to disk.
 
         Args:
             model_dir_path (str): Dir path to which to save the model.
@@ -150,17 +171,20 @@ class TSAnnotator:
         if not self._is_trained:
             raise NotFittedError("Model is not fitted yet.")
         joblib.dump(self, os.path.join(model_dir_path, PREDICTOR_FILE_NAME))
+        self.net.save(model_dir_path)
 
     @classmethod
     def load(cls, model_dir_path: str) -> "TSAnnotator":
-        """Load the Random Forest TSAnnotator from disk.
+        """Load the CNN TSAnnotator from disk.
 
         Args:
             model_dir_path (str): Dir path to the saved model.
         Returns:
-            TSAnnotator: A new instance of the loaded Random Forest TSAnnotator.
+            TSAnnotator: A new instance of the loaded CNN TSAnnotator.
         """
         model = joblib.load(os.path.join(model_dir_path, PREDICTOR_FILE_NAME))
+        model.net = Net.load(model_dir_path).to(device)
+        model.net.set_optimizer("adam")
         return model
 
 

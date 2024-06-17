@@ -57,7 +57,8 @@ def run_training(
             # load and save schema
             logger.info("Loading and saving schema...")
             data_schema = load_json_data_schema(input_schema_dir)
-            save_schema(schema=data_schema, save_dir_path=saved_schema_dir_path)
+            save_schema(schema=data_schema,
+                        save_dir_path=saved_schema_dir_path)
 
             # load model config
             logger.info("Loading model config...")
@@ -78,11 +79,13 @@ def run_training(
             )
 
             logger.info("Loading preprocessing config...")
-            preprocessing_config = read_json_as_dict(preprocessing_config_file_path)
+            preprocessing_config = read_json_as_dict(
+                preprocessing_config_file_path)
 
             # use default hyperparameters to train model
             logger.info("Loading hyperparameters...")
-            hyperparameters = read_json_as_dict(default_hyperparameters_file_path)
+            hyperparameters = read_json_as_dict(
+                default_hyperparameters_file_path)
 
             if model_config["run_tuning"]:
                 logger.info("Tuning hyperparameters...")
@@ -97,7 +100,8 @@ def run_training(
                     valid_split=valid_split,
                     data_schema=data_schema,
                     hpt_results_dir_path=hpt_results_dir_path,
-                    is_minimize=False,  # scoring metric is f1-score - so maximize it.
+                    # scoring metric is f1-score - so maximize it.
+                    is_minimize=False,
                     default_hyperparameters_file_path=default_hyperparameters_file_path,
                     hpt_specs_file_path=hpt_specs_file_path,
                     preprocessing_config=preprocessing_config,
@@ -126,7 +130,8 @@ def run_training(
 
         # Save pipelines
         logger.info("Saving pipelines...")
-        save_pipelines(trained_pipeline, inference_pipeline, preprocessing_dir_path)
+        save_pipelines(trained_pipeline, inference_pipeline,
+                       preprocessing_dir_path)
 
         # save predictor model
         logger.info("Saving annotator...")
@@ -137,7 +142,8 @@ def run_training(
         # Log the error
         logger.error(f"{err_msg} Error: {str(exc)}")
         # Log the error to the separate logging file
-        log_error(message=err_msg, error=exc, error_fpath=paths.TRAIN_ERROR_FILE_PATH)
+        log_error(message=err_msg, error=exc,
+                  error_fpath=paths.TRAIN_ERROR_FILE_PATH)
         # re-raise the error
         raise Exception(f"{err_msg} Error: {str(exc)}") from exc
 
