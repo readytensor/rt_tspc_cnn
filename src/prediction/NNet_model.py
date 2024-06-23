@@ -22,7 +22,18 @@ class Net(Module):
 
     """
 
-    def __init__(self, feat_dim, encode_len, n_classes, activation):
+    def __init__(self, feat_dim, encode_len, n_classes, activation, lr):
+        """
+        Wrapper class for the nerual net model.
+
+        Args:
+
+            feat_dim (int): Number of features in the input data.
+            encode_len (int): Length of the encoding.
+            n_classes (int): Number of classes to predict.
+            activation (str): Activation function to use.
+            lr (float): Learning rate for the model.
+        """
         super(Net, self).__init__()
         self.MODEL_NAME = "CNN_Timeseries_Annotator"
 
@@ -30,6 +41,7 @@ class Net(Module):
         self.encode_len = encode_len
         self.n_classes = n_classes
         self.activation = get_activation(activation)
+        self.lr = lr
         self.device = get_device()
         self.print_period = 1
 
@@ -185,6 +197,7 @@ class Net(Module):
             "feat_dim": self.feat_dim,
             "activation": self.activation,
             "n_classes": self.n_classes,
+            "lr": self.lr,
         }
         joblib.dump(model_params, os.path.join(model_path, MODEL_PARAMS_FNAME))
         torch.save(self.state_dict(), os.path.join(
@@ -205,11 +218,11 @@ class Net(Module):
     def __str__(self):
         return f"Model name: {self.MODEL_NAME}"
 
-    def set_optimizer(self, optimizer_name, lr=None):
+    def set_optimizer(self, optimizer_name):
         if optimizer_name == "adam":
-            self.optimizer = optim.Adam(self.parameters())
+            self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
         elif optimizer_name == "sgd":
-            self.optimizer = optim.SGD(self.parameters())
+            self.optimizer = optim.SGD(self.parameters(), lr=self.lr)
         else:
             raise ValueError(
                 f"Error: Unrecognized optimizer type: {optimizer_name}. "
