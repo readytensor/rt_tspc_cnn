@@ -48,33 +48,20 @@ class Net(Module):
         self.softmax = Softmax(dim=-1)
         self.criterion = CrossEntropyLoss()
 
-        dim1 = 100
-        dim2 = 50
-        dim3 = 25
+        dim1 = 1024
+        dim2 = 1024
+        dim3 = 32
 
         self.conv1 = Conv1d(
             in_channels=self.feat_dim,
             out_channels=dim1,
-            kernel_size=4,
+            kernel_size=5,
             stride=1,
             padding="same",
         )
-        self.conv2 = Conv1d(
-            in_channels=dim1,
-            out_channels=dim2,
-            kernel_size=8,
-            stride=1,
-            padding="same",
-        )
-        self.conv3 = Conv1d(
-            in_channels=dim2,
-            out_channels=dim3,
-            kernel_size=16,
-            stride=1,
-            padding="same",
-        )
+
         self.fc = Linear(
-            in_features=dim3 * self.encode_len,
+            in_features=dim2 * self.encode_len,
             out_features=self.encode_len * self.n_classes,
         )
         self.flatten = Flatten()
@@ -83,8 +70,6 @@ class Net(Module):
         batch_size = X.size(0)
         x = X.permute(0, 2, 1)
         x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
         x = x.permute(0, 2, 1)
         x = self.activation(x)
         x = x.reshape(batch_size, -1)
@@ -128,13 +113,13 @@ class Net(Module):
     def predict_proba(self, x):
         x = torch.FloatTensor(x).to(self.device)
         x = self.forward(x)
-        x = self.softmax(x)
+        # x = self.softmax(x)
         return x.cpu().detach().numpy()
 
     def predict(self, x):
         x = torch.FloatTensor(x).to(self.device)
         x = self.forward(x)
-        x = self.softmax(x)
+        # x = self.softmax(x)
         x = torch.argmax(x, dim=-1)
         return x.cpu().detach().numpy()
 
