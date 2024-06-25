@@ -49,19 +49,17 @@ class Net(Module):
         self.criterion = CrossEntropyLoss()
 
         dim1 = 1024
-        dim2 = 1024
-        dim3 = 32
 
         self.conv1 = Conv1d(
             in_channels=self.feat_dim,
             out_channels=dim1,
-            kernel_size=5,
+            kernel_size=3,
             stride=1,
             padding="same",
         )
 
         self.fc = Linear(
-            in_features=dim2 * self.encode_len,
+            in_features=dim1 * self.encode_len,
             out_features=self.encode_len * self.n_classes,
         )
         self.flatten = Flatten()
