@@ -35,7 +35,7 @@ class Net(Module):
             lr (float): Learning rate for the model.
         """
         super(Net, self).__init__()
-        self.MODEL_NAME = "CNN_Timeseries_Annotator"
+        self.MODEL_NAME = "CNN_TimeStepClassifier"
 
         self.feat_dim = feat_dim
         self.encode_len = encode_len
@@ -111,13 +111,13 @@ class Net(Module):
     def predict_proba(self, x):
         x = torch.FloatTensor(x).to(self.device)
         x = self.forward(x)
-        # x = self.softmax(x)
+        x = self.softmax(x)
         return x.cpu().detach().numpy()
 
     def predict(self, x):
         x = torch.FloatTensor(x).to(self.device)
         x = self.forward(x)
-        # x = self.softmax(x)
+        x = self.softmax(x)
         x = torch.argmax(x, dim=-1)
         return x.cpu().detach().numpy()
 
