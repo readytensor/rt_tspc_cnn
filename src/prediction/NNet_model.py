@@ -75,22 +75,27 @@ class Net(Module):
         x = x.view(-1, self.encode_len, self.n_classes)
         return x
 
-    def fit(self, train_X, train_y, valid_X=None, valid_y=None, max_epochs=100, batch_size=64, verbose=1):
+    def fit(
+        self,
+        train_X,
+        train_y,
+        valid_X=None,
+        valid_y=None,
+        max_epochs=100,
+        batch_size=64,
+        verbose=1,
+    ):
 
         patience = get_patience_factor(train_X.shape[0])
 
-        train_X, train_y = torch.FloatTensor(
-            train_X), torch.FloatTensor(train_y)
+        train_X, train_y = torch.FloatTensor(train_X), torch.FloatTensor(train_y)
         train_dataset = CustomDataset(train_X, train_y)
         train_loader = DataLoader(
-            dataset=train_dataset,
-            batch_size=int(batch_size),
-            shuffle=True
+            dataset=train_dataset, batch_size=int(batch_size), shuffle=True
         )
 
         if valid_X is not None and valid_y is not None:
-            valid_X, valid_y = torch.FloatTensor(
-                valid_X), torch.FloatTensor(valid_y)
+            valid_X, valid_y = torch.FloatTensor(valid_X), torch.FloatTensor(valid_y)
             valid_dataset = CustomDataset(valid_X, valid_y)
             valid_loader = DataLoader(
                 dataset=valid_dataset, batch_size=int(batch_size), shuffle=True
@@ -139,8 +144,7 @@ class Net(Module):
             for data in tqdm(train_loader, total=len(train_loader)):
                 X, y = data[0].to(self.device), data[1].to(self.device)
                 preds = self(X)
-                loss = self.criterion(
-                    preds.view(-1, preds.size(-1)), y.view(-1).long())
+                loss = self.criterion(preds.view(-1, preds.size(-1)), y.view(-1).long())
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
@@ -149,9 +153,7 @@ class Net(Module):
 
             if use_early_stopping:
                 if valid_loader is not None:
-                    current_loss = self.get_loss(
-                        valid_loader, self.criterion
-                    )
+                    current_loss = self.get_loss(valid_loader, self.criterion)
                 losses.append({"epoch": epoch, "loss": current_loss})
                 if current_loss < best_loss:
                     trigger_times = 0
@@ -183,19 +185,13 @@ class Net(Module):
             "lr": self.lr,
         }
         joblib.dump(model_params, os.path.join(model_path, MODEL_PARAMS_FNAME))
-        torch.save(self.state_dict(), os.path.join(
-            model_path, MODEL_WTS_FNAME))
-        
-        
+        torch.save(self.state_dict(), os.path.join(model_path, MODEL_WTS_FNAME))
 
     @classmethod
     def load(cls, model_path):
-        model_params = joblib.load(
-            os.path.join(model_path, MODEL_PARAMS_FNAME))
+        model_params = joblib.load(os.path.join(model_path, MODEL_PARAMS_FNAME))
         model = cls(**model_params)
-        model.load_state_dict(
-            torch.load(os.path.join(model_path, MODEL_WTS_FNAME))
-        )
+        model.load_state_dict(torch.load(os.path.join(model_path, MODEL_WTS_FNAME)))
         return model
 
     def __str__(self):
@@ -321,8 +317,7 @@ if __name__ == "__main__":
     )
     model.to(device=device)
 
-    X = np.random.randn(
-        N, encode_len, D).astype(np.float32)
+    X = np.random.randn(N, encode_len, D).astype(np.float32)
 
     print(model)
 
